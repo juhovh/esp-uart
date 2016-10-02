@@ -56,9 +56,8 @@ void uart0_open(uint32 baud_rate, uint32 flags);
 void uart0_reset();
 
 uint16 uart0_available();
-uint16 uart0_available_wait();
-uint16 uart0_read_buf(const void *buf, uint16 nbyte);
-uint16 uart0_write_buf(const void *buf, uint16 nbyte);
+uint16 uart0_read_buf(const void *buf, uint16 nbyte, uint16 timeout);
+uint16 uart0_write_buf(const void *buf, uint16 nbyte, uint16 timeout);
 void uart0_flush();
 
 void uart1_open(uint32 baud_rate, uint32 flags);

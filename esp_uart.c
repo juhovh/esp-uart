@@ -23,8 +23,11 @@
  */
 #include "esp_uart.h"
 
+#include "osapi.h"
 #include "ets_sys.h"
 #include "uart_register.h"
+
+#define WAIT_RESOLUTION_US 1000
 
 #define UART0 0
 #define UART1 1
@@ -194,33 +197,22 @@ uart0_available()
 }
 
 uint16 ICACHE_FLASH_ATTR
-uart0_available_wait()
-{
-  uint16 uart0_rxfifo_len;
-  uint16 ret;
-
-  ETS_UART_INTR_DISABLE();
-  uart0_rxfifo_len = UART_RXFIFO_LEN(UART0);
-  if (uart0_rx_ringbuf.len == 0 && uart0_rxfifo_len == 0) {
-    ETS_UART_INTR_ENABLE();
-    while ((uart0_rxfifo_len = UART_RXFIFO_LEN(UART0)) == 0);
-    ETS_UART_INTR_DISABLE();
-  }
-  if (uart0_rx_ringbuf.len == 0 && uart0_rxfifo_len > 0) {
-    uart0_rxfifo_move(&uart0_rx_ringbuf, uart0_rxfifo_len);
-  }
-  ret = uart0_rx_ringbuf.len;
-  ETS_UART_INTR_ENABLE();
-
-  return ret;
-}
-
-uint16 ICACHE_FLASH_ATTR
-uart0_read_buf(const void *buf, uint16 nbytes)
+uart0_read_buf(const void *buf, uint16 nbytes, uint16 timeout)
 {
   uint8 *data = buf;
   uint16 i;
 
+  if (timeout > 0) {
+    uint32 stime = system_get_time();
+
+    // Wait until there is some data available
+    while ((system_get_time() - stime) < ((uint32)timeout * 1000)) {
+      if (uart0_available() > 0) break;
+      os_delay_us(WAIT_RESOLUTION_US);
+    }
+  }
+
+  // Read all data available in ringbuf
   ETS_UART_INTR_DISABLE();
   for (i=0; i<nbytes; i++) {
     if (uart0_rx_ringbuf.len == 0) break;
@@ -232,14 +224,29 @@ uart0_read_buf(const void *buf, uint16 nbytes)
 }
 
 uint16 ICACHE_FLASH_ATTR
-uart0_write_buf(const void *buf, uint16 nbytes)
+uart0_write_buf(const void *buf, uint16 nbytes, uint16 timeout)
 {
+  uint32 stime;
   uint8 *data = buf;
   uint16 i;
 
+  if (timeout > 0) {
+    uint32 stime = system_get_time();
+    uint16 ringbuflen;
+
+    // Wait until there is some space available
+    while ((system_get_time() - stime) < ((uint32)timeout * 1000)) {
+      ETS_UART_INTR_DISABLE();
+      ringbuflen = uart0_tx_ringbuf.len;
+      ETS_UART_INTR_ENABLE();
+      if (ringbuflen < RINGBUF_SIZE) break;
+      os_delay_us(WAIT_RESOLUTION_US);
+    }
+  }
+
   ETS_UART_INTR_DISABLE();
   for (i=0; i<nbytes; i++) {
-    if (uart0_tx_ringbuf.len == RINGBUF_SIZE) break;
+    if (uart0_tx_ringbuf.len >= RINGBUF_SIZE) break;
     RINGBUF_PUT(&uart0_tx_ringbuf, data[i]);
   }
   SET_PERI_REG_MASK(UART_INT_ENA(UART0), UART_TXFIFO_EMPTY_INT_ENA);
