@@ -41,9 +41,9 @@ extern "C" {
 #define UART_BITS_EIGHT         0x0C
 #define UART_BITS_MASK          0x0C
 
-#define UART_PARITY_EVEN        0x00
-#define UART_PARITY_ODD         0x01
 #define UART_PARITY_NONE        0x00
+#define UART_PARITY_EVEN        0x02
+#define UART_PARITY_ODD         0x03
 #define UART_PARITY_MASK        0x03
 
 #define UART_FLAGS_8N1 (UART_BITS_EIGHT | UART_PARITY_NONE | UART_STOP_BITS_ONE)
